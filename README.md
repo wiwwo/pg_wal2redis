@@ -52,3 +52,4 @@ $ docker exec -it some-redis redis-cli
 * A logical replication slot, as in `select pg_create_logical_replication_slot('pg_wal2redis', 'wal2json');`
 * python 3.10
 * psycopg2-binary==2.9.1
+* redis===4.3.4
