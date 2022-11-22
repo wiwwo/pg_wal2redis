@@ -67,13 +67,13 @@ def send_wal(wal_msg, redis_obj, cache_config):
 
     ljson = json.loads(wal_msg.payload)
 
-    # Skip 'B'egins, 'C'ommits etc
-    if ljson['action'] in {'I','U','D'}:
+    # Only for interested table
+    #  Have to do this here, since wal2json does not support pubblications/subscriptions,
+    #  which would have ment that I do this at DB level, as in "Just show e changes for interested object"
+    if ljson['schema'] == cache_config['watch_schema'] and ljson['table'] == cache_config['watch_table']:
 
-      # Only for interested table
-      #  Have to do this here, since wal2json does not support pubblications/subscriptions,
-      #  which would have ment that I do this at DB level, as in "Just show e changes for interested object"
-      if ljson['schema'] == cache_config['watch_schema'] and ljson['table'] == cache_config['watch_table']:
+      # Skip 'B'egins, 'C'ommits etc
+      if ljson['action'] in {'I','U','D'}:
 
         # Get the value of table's PK of table, which will be the ID in the hash namespace (eg. aid=123)
         # TODO: composite PKs
