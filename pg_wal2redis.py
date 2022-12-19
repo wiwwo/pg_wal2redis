@@ -9,7 +9,7 @@ import psycopg2
 from psycopg2.extras import LogicalReplicationConnection, StopReplication
 
 
-def get_repl_cursor(postgres_config):
+def get_repl_cursor(postgres_config, cache_config):
   try:
     lconnection  = psycopg2.connect (
                     "host=%s user=%s password=%s dbname=%s port=%s" % \
@@ -32,6 +32,9 @@ def get_repl_cursor(postgres_config):
                   ,'write-in-chunks':0
                   ,'include-lsn':0
                   ,'format-version':2
+                  ,'include-transaction':0
+                  ,'add-tables': cache_config['watch_schema']+'.'+cache_config['watch_table']
+                  ,'actions': 'insert, update, delete'
               }
     ,decode=True
   )
@@ -66,35 +69,28 @@ def send_wal(wal_msg, redis_obj, cache_config):
   if wal_msg:
 
     ljson = json.loads(wal_msg.payload)
+    #print(ljson)
 
-    # Only for interested table
-    #  Have to do this here, since wal2json does not support pubblications/subscriptions,
-    #  which would have ment that I do this at DB level, as in "Just show e changes for interested object"
-    if ljson['schema'] == cache_config['watch_schema'] and ljson['table'] == cache_config['watch_table']:
+    # Get the value of table's PK of table, which will be the ID in the hash namespace (eg. aid=123)
+    # TODO: composite PKs
+    lwatched_pk_val = getData(cache_config['watch_pk'], ljson['columns'])
 
-      # Skip 'B'egins, 'C'ommits etc
-      if ljson['action'] in {'I','U','D'}:
+    if ljson['action'] in {'I','U'}:
 
-        # Get the value of table's PK of table, which will be the ID in the hash namespace (eg. aid=123)
-        # TODO: composite PKs
-        lwatched_pk_val = getData(cache_config['watch_pk'], ljson['columns'])
+      # This is the value of the watched column (eg. abalance=123,4)
+      lwatch_column_value = getData(cache_config['watch_column'], ljson['columns'])
 
-        if ljson['action'] in {'I','U'}:
-
-          # This is the value of the watched column (eg. abalance=123,4)
-          lwatch_column_value = getData(cache_config['watch_column'], ljson['columns'])
-
-          redis_obj.hset (  cache_config['hset_name']+':'+str(lwatched_pk_val)
-                           ,cache_config['hset_field']
-                           ,lwatch_column_value
-                         )
+      redis_obj.hset (  cache_config['hset_name']+':'+str(lwatched_pk_val)
+                       ,cache_config['hset_field']
+                       ,lwatch_column_value
+                     )
 
 
-        if ljson['action'] == 'D':
-          # Just remove the key
-          redis_obj.hdel (  cache_config['hset_name']+':'+str(lwatched_pk_val)
-                           ,cache_config['hset_field']
-                         )
+    if ljson['action'] == 'D':
+      # Just remove the key
+      redis_obj.hdel (  cache_config['hset_name']+':'+str(lwatched_pk_val)
+                       ,cache_config['hset_field']
+                     )
 
     wal_msg.cursor.send_feedback(flush_lsn=wal_msg.data_start)
 
@@ -111,7 +107,7 @@ def main():
     exit(20)
 
   lredis = connect_redis(config['redis'])
-  repl_cursor = get_repl_cursor(config['postgresql'])
+  repl_cursor = get_repl_cursor(config['postgresql'], config['cache'])
 
 
   while True:

@@ -53,3 +53,9 @@ $ docker exec -it some-redis redis-cli
 * python 3.10
 * psycopg2-binary==2.9.1
 * redis===4.3.4
+
+
+---
+## TODO
+
+* Check if transaction is committed before changing the cache
