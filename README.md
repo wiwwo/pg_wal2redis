@@ -7,6 +7,9 @@ Send Postgresql database changes to a redis instance, and keep it updated.
 It just works.
 <br><br>
 Constraint: table must have a PK, and on a single field; composite PKs are (still) not supported
+<br><br>
+IMPORTANT: use of this code in business context is strictly forbidden unless with explicit consent.
+
 
 
 ---
